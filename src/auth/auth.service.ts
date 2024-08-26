@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -18,7 +19,7 @@ export class AuthService {
     private readonly userRepository: UserRepository,
   ) {}
 
-  public async register({ email, password }: CreateUserDto): Promise<any> {
+  public async register({ email, password }: CreateUserDto) {
     const existingUser = await this.findUserByEmail(email);
 
     if (existingUser) {
@@ -28,8 +29,21 @@ export class AuthService {
     const hashedPassword = bcrypt.hashSync(password, 10);
     const newUser = await this.createUser(email, hashedPassword);
     return {
-      accessToken: this.generateToken(newUser),
+      ...this.generateTokenPair(newUser),
       ...omit(newUser, ['password']),
+    };
+  }
+
+  public async login({ email, password }: LoginDto) {
+    const user = await this.validateUser(email, password);
+
+    if (isNil(user)) {
+      throw new BadRequestException('Incorrect email or password');
+    }
+
+    return {
+      ...this.generateTokenPair(user),
+      ...omit(user, ['password']),
     };
   }
 
@@ -37,10 +51,18 @@ export class AuthService {
     return this.userRepository.save({ email, password: hashedPassword });
   }
 
-  private generateToken({ email, id }: UserEntity) {
+  private generateTokenPair({ email, id }: UserEntity) {
     const payload = { email, sub: id };
-
-    return this.jwtService.sign(payload);
+    return {
+      accessToken: this.jwtService.sign(payload, {
+        secret: process.env.JWT_ACCESS_SECRET,
+        expiresIn: '1h',
+      }),
+      refreshToken: this.jwtService.sign(payload, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: '7d',
+      }),
+    };
   }
 
   private async validateUser(email: string, password: string): Promise<any> {
@@ -51,17 +73,26 @@ export class AuthService {
     return null;
   }
 
-  async login({ email, password }: LoginDto) {
-    const user = await this.validateUser(email, password);
+  public async refresh(token: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.JWT_REFRESH_SECRET,
+        ignoreExpiration: false,
+      });
 
-    if (isNil(user)) {
-      throw new BadRequestException('Incorrect email or password');
+      return {
+        accessToken: this.jwtService.sign(omit(payload, ['iat', 'exp']), {
+          secret: process.env.JWT_ACCESS_SECRET,
+          expiresIn: '1h',
+        }),
+        refreshToken: this.jwtService.sign(omit(payload, ['iat', 'exp']), {
+          secret: process.env.JWT_REFRESH_SECRET,
+          expiresIn: '7d',
+        }),
+      };
+    } catch (error) {
+      throw new UnauthorizedException(error);
     }
-
-    return {
-      accessToken: this.generateToken(user),
-      ...omit(user, ['password']),
-    };
   }
 
   private async findUserByEmail(email: string) {

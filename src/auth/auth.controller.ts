@@ -4,14 +4,18 @@ import {
   Get,
   Post,
   UseGuards,
-  Request,
+  Req,
+  Res,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { LoginDto } from './dtos/login.dto';
-import { ApiOkResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { LoginResponseDto } from './dtos/login-response.dto';
 import { JwtAuthGuard } from 'src/guards/auth-guard';
+import { Response, Request } from 'express';
+
+const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
@@ -19,19 +23,43 @@ export class AuthController {
 
   @Post('sign-up')
   @ApiOkResponse({ type: () => LoginResponseDto })
-  async signUp(@Body() body: CreateUserDto) {
-    return this.authService.register(body);
+  async signUp(@Body() body: CreateUserDto, @Res() res: Response) {
+    const userData = await this.authService.register(body);
+
+    res.cookie('token', userData.refreshToken, {
+      httpOnly: true,
+      maxAge: SEVEN_DAYS_IN_MS,
+    });
+    return userData;
   }
 
   @Post('sign-in')
   @ApiOkResponse({ type: () => LoginResponseDto })
-  async login(@Body() body: LoginDto) {
-    return this.authService.login(body);
+  async login(
+    @Body() body: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const userData = await this.authService.login(body);
+
+    res.cookie('token', userData.refreshToken, {
+      httpOnly: true,
+      maxAge: SEVEN_DAYS_IN_MS,
+    });
+
+    return userData;
+  }
+
+  @ApiBearerAuth('Refresh Token')
+  @Get('refresh')
+  @ApiOkResponse({ type: () => LoginResponseDto })
+  async refresh(@Req() req: Request) {
+    return this.authService.refresh(req.cookies.token);
   }
 
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Refresh Token')
   @Get('me')
-  getProfile(@Request() req) {
+  getProfile(@Req() req) {
     return req.user;
   }
 }
