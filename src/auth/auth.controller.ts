@@ -16,6 +16,7 @@ import { JwtAuthGuard } from 'src/guards/auth-guard';
 import { Response, Request } from 'express';
 
 const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
+const TWO_HOURS_IN_MS = 2 * 60 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
@@ -28,8 +29,14 @@ export class AuthController {
 
     res.cookie('token', userData.refreshToken, {
       httpOnly: true,
-      maxAge: SEVEN_DAYS_IN_MS,
+      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
     });
+
+    res.cookie('rememberMe', body.rememberMe, {
+      httpOnly: true,
+      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
+    });
+
     return userData;
   }
 
@@ -43,7 +50,12 @@ export class AuthController {
 
     res.cookie('token', userData.refreshToken, {
       httpOnly: true,
-      maxAge: SEVEN_DAYS_IN_MS,
+      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
+    });
+
+    res.cookie('rememberMe', body.rememberMe, {
+      httpOnly: true,
+      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
     });
 
     return userData;
@@ -53,7 +65,7 @@ export class AuthController {
   @Get('refresh')
   @ApiOkResponse({ type: () => LoginResponseDto })
   async refresh(@Req() req: Request) {
-    return this.authService.refresh(req.cookies.token);
+    return this.authService.refresh(req.cookies.token, req.cookies.rememberMe);
   }
 
   @UseGuards(JwtAuthGuard)
