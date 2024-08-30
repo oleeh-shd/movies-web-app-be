@@ -8,6 +8,7 @@ import {
   UploadedFile,
   UseInterceptors,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { MoviesService } from './movies.service';
 import { CreateMovieDto } from './dto/create-movie.dto';
@@ -19,8 +20,10 @@ import { ApiOkResponse, ApiResponse } from '@nestjs/swagger';
 import { MessageDto } from 'src/common/dtos/message.dto';
 import { GetMovieListResponseDto } from './dto/get-movie-list-response.dto';
 import { UploadPosterResponseDto } from './dto/upload-poster-response.dto';
+import { JwtAuthGuard } from 'src/guards/auth-guard';
 
 @Controller('movies')
+@UseGuards(JwtAuthGuard)
 export class MoviesController {
   constructor(private readonly moviesService: MoviesService) {}
 

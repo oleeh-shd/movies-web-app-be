@@ -14,9 +14,7 @@ import { ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { LoginResponseDto } from './dtos/login-response.dto';
 import { JwtAuthGuard } from 'src/guards/auth-guard';
 import { Response, Request } from 'express';
-
-const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
-const TWO_HOURS_IN_MS = 2 * 60 * 60 * 1000;
+import { TokenExpirationTimeMs } from './enums/token-expiration-time.enum';
 
 @Controller('auth')
 export class AuthController {
@@ -27,14 +25,18 @@ export class AuthController {
   async signUp(@Body() body: CreateUserDto, @Res() res: Response) {
     const userData = await this.authService.register(body);
 
-    res.cookie('token', userData.refreshToken, {
+    res.cookie('refreshToken', userData.refreshToken, {
       httpOnly: true,
-      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
+      maxAge: body.rememberMe
+        ? TokenExpirationTimeMs.REFRESH_LONG
+        : TokenExpirationTimeMs.REFRESH_SHORT,
     });
 
     res.cookie('rememberMe', body.rememberMe, {
       httpOnly: true,
-      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
+      maxAge: body.rememberMe
+        ? TokenExpirationTimeMs.REFRESH_LONG
+        : TokenExpirationTimeMs.REFRESH_SHORT,
     });
 
     return userData;
@@ -48,14 +50,18 @@ export class AuthController {
   ) {
     const userData = await this.authService.login(body);
 
-    res.cookie('token', userData.refreshToken, {
+    res.cookie('refreshToken', userData.refreshToken, {
       httpOnly: true,
-      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
+      maxAge: body.rememberMe
+        ? TokenExpirationTimeMs.REFRESH_LONG
+        : TokenExpirationTimeMs.REFRESH_SHORT,
     });
 
     res.cookie('rememberMe', body.rememberMe, {
       httpOnly: true,
-      maxAge: body.rememberMe ? SEVEN_DAYS_IN_MS : TWO_HOURS_IN_MS,
+      maxAge: body.rememberMe
+        ? TokenExpirationTimeMs.REFRESH_LONG
+        : TokenExpirationTimeMs.REFRESH_SHORT,
     });
 
     return userData;
@@ -65,7 +71,10 @@ export class AuthController {
   @Get('refresh')
   @ApiOkResponse({ type: () => LoginResponseDto })
   async refresh(@Req() req: Request) {
-    return this.authService.refresh(req.cookies.token, req.cookies.rememberMe);
+    return this.authService.refresh(
+      req.cookies.refreshToken,
+      req.cookies.rememberMe,
+    );
   }
 
   @UseGuards(JwtAuthGuard)
