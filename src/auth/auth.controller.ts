@@ -22,7 +22,10 @@ export class AuthController {
 
   @Post('sign-up')
   @ApiOkResponse({ type: () => LoginResponseDto })
-  async signUp(@Body() body: CreateUserDto, @Res() res: Response) {
+  async signUp(
+    @Body() body: CreateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const userData = await this.authService.register(body);
 
     res.cookie('refreshToken', userData.refreshToken, {
